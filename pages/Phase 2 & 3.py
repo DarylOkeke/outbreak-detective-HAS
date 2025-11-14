@@ -1,7 +1,6 @@
-# app.py
 # Outbreak Detective — Prediction & Response (North Campus Wastewater)
 # Streamlit app with biologically framed interventions, Days Delayed KPI,
-# and an Effectiveness Score for the CS/Stats kids.
+# and a Viral Load Reduction metric.
 
 import math
 import numpy as np
@@ -55,13 +54,11 @@ st.markdown(
 )
 
 # -------------------- DEMO TUNING --------------------
-# Make intervention effects more visually obvious (affects r, <1 = stronger reduction)
+# Makes plan effects visually obvious (affects r, <1 = stronger reduction)
 DEMO_EXAGGERATION = 0.60
-# Smooth curve rendering (use line_shape instead of deprecated smoothing attr)
 LINE_SHAPE = "spline"
-# Zoom y-axis tightly around threshold
-Y_CAP_MULT = 1.6   # ~1.6x the threshold as an upper bound cap
-Y_MIN_FRACTION = 0.5  # show from ~50% of threshold (unless data is lower)
+Y_CAP_MULT = 1.6
+Y_MIN_FRACTION = 0.5
 
 # -------------------- HELPERS --------------------
 def logistic(t, K, r, t0):
@@ -115,8 +112,7 @@ def simulate_forecast_smooth(
     r_mult=1.0,
     K=None,
     t_int=0,
-    trans_days=2.0,   # snappier so differences show up earlier
-    lag_days=0,
+    trans_days=2.0,
     substeps=12,
 ):
     """
@@ -153,12 +149,6 @@ def simulate_forecast_smooth(
         y[i] = max(y[i - 1] + dy * dt, 0.0)
 
     y_daily = y[::substeps]
-
-    # detection lag: shift right
-    L = int(max(0, lag_days))
-    if L > 0:
-        y_daily = _np.concatenate([_np.full(L, y_daily[0]), y_daily[:-L]])
-
     return y_daily
 
 # -------------------- SIDEBAR CONTROLS --------------------
@@ -179,44 +169,48 @@ st.sidebar.markdown("---")
 st.sidebar.markdown("### 🎯 Budget Game (10 points)")
 budget = 10
 
-# --- FINAL BIO-FRIENDLY INTERVENTIONS (no pause events) ---
-# r_mult < 1 slows growth; lag_shift < 0 means earlier detection
+# --- FINAL INTERVENTIONS: TR vs SR ---
+# TR = Transmission Reducers (change r / slope)
+# SR = Shedding Reducers (change wastewater height via shed_mult)
 INTERVENTIONS = {
-    "Surge Testing (North Campus)": {
-        "cost": 6,
-        "desc": "Finds infected students early so they stop adding RNA to wastewater.",
-        "r_mult": 0.78,
-        "lag_shift": -1,
-    },
-    "Isolation Capacity (more rooms & staff)": {
-        "cost": 3,
-        "desc": "Moves positive students out of shared housing faster so they shed for fewer days.",
-        "r_mult": 0.77,
-        "lag_shift": 0,
-    },
-    "Fast Test Turnaround (same-day results)": {
-        "cost": 2,
-        "desc": "Shortens the time from test to isolation, removing shedders sooner.",
-        "r_mult": 0.90,
-        "lag_shift": -1,
-    },
-    "Masking Indoors": {
+    # Transmission Reducers (TR)
+    "Masking Policy": {
         "cost": 4,
-        "desc": "Lowers how much virus people breathe in and out, so fewer get infected.",
-        "r_mult": 0.86,
-        "lag_shift": 0,
+        "desc": "Fewer infected droplets in the air → fewer new infections (strong TR).",
+        "r_mult": 0.70,
+        "shed_mult": 1.00,
     },
-    "Improve Ventilation in Dorms": {
+    "Improved Dorm Ventilation": {
         "cost": 3,
-        "desc": "Refreshes indoor air so fewer exposures turn into infections.",
-        "r_mult": 0.94,
-        "lag_shift": 0,
+        "desc": "Cleaner indoor air → fewer exposures become infections (medium TR).",
+        "r_mult": 0.80,
+        "shed_mult": 1.00,
     },
-    "Education Campaign (stay home if sick)": {
+    "Stay-Home-When-Sick Campaign": {
         "cost": 1,
-        "desc": "Keeps mildly sick students out of shared spaces, reducing new infections.",
-        "r_mult": 0.97,
-        "lag_shift": 0,
+        "desc": "Keeps mildly sick students out of shared spaces (light TR).",
+        "r_mult": 0.90,
+        "shed_mult": 1.00,
+    },
+
+    # Shedding Reducers (SR)
+    "Rapid Testing Blitz": {
+        "cost": 6,
+        "desc": "Finds hidden positives early → removes silent shedders (strong SR).",
+        "r_mult": 1.00,
+        "shed_mult": 0.60,
+    },
+    "Dedicated Isolation Dorms": {
+        "cost": 3,
+        "desc": "Moves positives to separate plumbing → lowers RNA in wastewater (medium SR).",
+        "r_mult": 1.00,
+        "shed_mult": 0.75,
+    },
+    "Same-Day Test Results": {
+        "cost": 2,
+        "desc": "Faster test → isolation → fewer days shedding (light SR).",
+        "r_mult": 1.00,
+        "shed_mult": 0.85,
     },
 }
 
@@ -232,10 +226,10 @@ applied_interventions = chosen if not over_budget and total_cost > 0 else []
 
 if applied_interventions:
     combined_r_mult = float(np.prod([INTERVENTIONS[k]["r_mult"] for k in applied_interventions]))
-    combined_lag = int(round(sum(INTERVENTIONS[k]["lag_shift"] for k in applied_interventions)))
+    combined_shed_mult = float(np.prod([INTERVENTIONS[k]["shed_mult"] for k in applied_interventions]))
 else:
     combined_r_mult = 1.0
-    combined_lag = 0
+    combined_shed_mult = 1.0
 
 if total_cost > budget:
     st.sidebar.error(f"Over budget by {total_cost - budget} point(s). Remove something.")
@@ -256,50 +250,55 @@ base_dates = pd.date_range(series_dates.min(), periods=len(series_vals) + days_a
 horizon = len(base_dates)
 
 # Optional: align with Detection Phase "today"
-DAYS_SHIFT = 7
+DAYS_SHIFT = 6
 series_dates = series_dates + pd.Timedelta(days=DAYS_SHIFT)
 base_dates   = base_dates + pd.Timedelta(days=DAYS_SHIFT)
 
 # -------------------- MODEL / SCENARIOS --------------------
-lag_baseline = 1  # wastewater detection lag (days)
-
-def run_scenario(r_mult=1.0, lag_shift=0, trans_days=2.0):
+def run_scenario(r_mult=1.0, shed_mult=1.0, trans_days=2.0):
+    """
+    r_mult: affects growth rate (transmission).
+    shed_mult: scales the forecast part of the curve (shedding).
+    """
     rr0 = r0
-    # Keep negative lag shifts from visually moving the curve earlier (so interventions don't look worse)
-    lag_shift_for_curve = max(0, lag_shift)
-    lag = max(0, lag_baseline + lag_shift_for_curve)
     K_use = K if use_logistic else None
 
     y = np.zeros(horizon, dtype=float)
 
-    # copy observed up to the day before the last observed
-    y[: len(series_vals) - 1] = series_vals[: len(series_vals) - 1]
+    # 1) Copy ALL observed points directly (shared history up to "Today")
+    y[: len(series_vals)] = series_vals[:]
 
-    # forecast from the last observed point forward
-    start_idx = len(series_vals) - 1
-    future_days = horizon - start_idx
+    # 2) Forecast starts the day AFTER the last observed point ("Today")
+    start_idx = len(series_vals)          # index of the first future day
+    future_days = horizon - start_idx     # how many future days we need
 
-    # Interventions are assumed to kick in right as we start forecasting
-    y_forward = simulate_forecast_smooth(
-        days=future_days,
-        y0=series_vals[-1],
-        r0=rr0,
-        r_mult=r_mult,
-        K=K_use,
-        t_int=0.0,
-        trans_days=trans_days,
-        lag_days=lag,
-        substeps=12,
-    )
+    if future_days > 0:
+        # Simulate future trajectory starting from the last observed value
+        y_forward = simulate_forecast_smooth(
+            days=future_days + 1,         # +1 so we can discard the t=0 point
+            y0=series_vals[-1],
+            r0=rr0,
+            r_mult=r_mult,
+            K=K_use,
+            t_int=0.0,
+            trans_days=trans_days,
+            substeps=12,
+        )
 
-    y[start_idx:] = y_forward
+        # First element of y_forward is the starting value at "Today"
+        # We drop it and only use the future points.
+        y_future = y_forward[1:] * shed_mult
+        y[start_idx:] = y_future
+
     return y
 
-# Baseline & plan curves
-y_base  = run_scenario(r_mult=1.0,              lag_shift=0)
-if applied_interventions:
-    r_mult_effective = combined_r_mult * DEMO_EXAGGERATION  # exaggerate plan effect so days-delayed moves
-    y_combo = run_scenario(r_mult=r_mult_effective, lag_shift=combined_lag)
+# Baseline and plan curves
+y_base = run_scenario(r_mult=1.0, shed_mult=1.0, trans_days=2.0)
+
+if applied_interventions and not over_budget:
+    # Make plan effects slightly stronger visually
+    r_mult_effective = combined_r_mult * DEMO_EXAGGERATION
+    y_combo = run_scenario(r_mult=r_mult_effective, shed_mult=combined_shed_mult, trans_days=2.0)
 else:
     y_combo = y_base.copy()
 
@@ -329,24 +328,53 @@ cum_base  = float(np.sum(y_base))
 cum_combo = float(np.sum(y_combo))
 reduction_cum = pct_reduction(cum_base, cum_combo)
 
-# Effectiveness score: combine delay + % reduction per cost
+# -------------------- EFFECTIVENESS SCORE --------------------
+
+def has_TR(applied):
+    """True if the plan includes at least one transmission reducer."""
+    return any(INTERVENTIONS[name]["r_mult"] < 1.0 for name in applied)
+
+def has_SR(applied):
+    """True if the plan includes at least one shedding reducer."""
+    return any(INTERVENTIONS[name]["shed_mult"] < 1.0 for name in applied)
+
 if applied_interventions and not over_budget and total_cost > 0:
+    # Core biological impacts (never reward negative changes)
     delay_score = max(days_delay_num, 0)
-    rna_score = max(reduction_cum, 0.0)
-    total_impact = delay_score * 15.0 + rna_score * 20.0
-    effectiveness_score = (total_impact / total_cost) * 10.0
+    rna_score   = max(reduction_cum, 0.0)
+
+    # Normalize so score is mostly between 0 and 100
+    # Treat "delay by forecast window" and "80 percent reduction" as excellent
+    delay_norm = min(delay_score, days_ahead) / float(days_ahead)
+    rna_norm   = min(rna_score, 80.0) / 80.0
+
+    # Delay is slightly more important than total load
+    base = 60.0 * delay_norm + 40.0 * rna_norm
+
+    # Synergy bonus if plan mixes TR and SR
+    if has_TR(applied_interventions) and has_SR(applied_interventions):
+        base *= 1.20
+    elif has_TR(applied_interventions) or has_SR(applied_interventions):
+        base *= 1.05
+
+    # Small bonus for using more than one tool
+    # This keeps a strong combo from looking worse than a strong single pick
+    complexity_bonus = max(0, len(applied_interventions) - 1) * 4.0
+
+    effectiveness_score = min(base + complexity_bonus, 100.0)
     eff_text = f"{effectiveness_score:.1f}"
 else:
     effectiveness_score = None
     eff_text = "N/A"
 
+
 # -------------------- LAYOUT --------------------
 st.markdown(
-    "<h2 style='color:#DDE6F1;'>Forecasting North Campus Wastewater </h2>",
+    "<h2 style='color:#DDE6F1;'>Forecasting North Campus Wastewater</h2>",
     unsafe_allow_html=True
 )
 st.markdown(
-    "<div class='subtle'> Forecast model: We fit a short-term exponential growth rate from the latest data, then simulate forward with a logistic curve. Interventions smoothly reduce the growth rate over time, so the curve bends realistically without using a full epidemic model.</div>",
+    "<div class='subtle'>Forecast model: We fit a short-term exponential growth rate from the latest data, then simulate forward with a logistic-like curve. Transmission-focused interventions bend the slope; shedding-focused interventions lower the wastewater curve.</div>",
     unsafe_allow_html=True
 )
 st.write("")
@@ -356,8 +384,8 @@ st.markdown(
 **Your mission:**  
 With a **budget of 10 points**, pick a combination of interventions that
 
-1. **Delays** the curve from crossing the danger threshold (more Days Delayed), and  
-2. **Decrease the amount of Viral Load in Sewage** (delay + viral RNA reduction per point spent).
+1. **Delays** the curve from crossing the danger threshold (more **Days Until Danger Zone**), and  
+2. **Decreases the total Viral Load in Sewage** (higher **Wastewater Viral Load Reduction**).
 """
 )
 
@@ -395,7 +423,6 @@ with col_plot:
         font=dict(color="#DDE6F1")
     )
 
-
     # Baseline future (no intervention)
     fig.add_trace(go.Scatter(
         x=base_dates, y=y_base, mode="lines",
@@ -405,11 +432,11 @@ with col_plot:
     ))
 
     # Plan future
-    plan_active = bool(applied_interventions)
+    plan_active = bool(applied_interventions) and not over_budget
     color_combo = HAS_TEAL if plan_active else HAS_GRAY
-    plan_opacity = 0.95 if plan_active and not over_budget else (0.35 if over_budget else 0.6)
-    plan_dash = None if plan_active and not over_budget else "dot"
-    plan_name = "Your Plan" if plan_active and not over_budget else ("Your Plan (over budget)" if over_budget else "No interventions selected")
+    plan_opacity = 0.95 if plan_active else (0.35 if applied_interventions else 0.6)
+    plan_dash = None if plan_active else "dot"
+    plan_name = "Your Plan" if plan_active else ("Your Plan (over budget)" if over_budget else "No interventions selected")
 
     fig.add_trace(go.Scatter(
         x=base_dates, y=y_combo, mode="lines",
@@ -452,7 +479,7 @@ with col_plot:
         )
     if cross_base is not None and cross_combo is None and plan_active:
         fig.add_annotation(
-            x=obs_end, y=danger*1.02, xref="x", yref="y",
+            x=obs_end, y=danger * 1.02, xref="x", yref="y",
             text="Your plan avoids threshold in window",
             showarrow=False, font=dict(color=HAS_TEAL)
         )
@@ -462,10 +489,10 @@ with col_plot:
     y_min_candidate = min(all_vals.min(), danger * Y_MIN_FRACTION)
     y_min = max(0.0, y_min_candidate * 0.95)
     y_max_candidate = max(danger * 1.25, np.percentile(all_vals, 90))
-    y_max_cap = max(danger * 1.3, danger * Y_CAP_MULT)  # ensure room above threshold; cap extreme spikes
+    y_max_cap = max(danger * 1.3, danger * Y_CAP_MULT)
     y_max = min(y_max_candidate * 1.05, y_max_cap)
     if y_max <= danger * 1.1:
-        y_max = danger * 1.3  # guarantee some headroom above threshold
+        y_max = danger * 1.3
 
     fig.update_layout(
         template="plotly_dark",
@@ -480,29 +507,30 @@ with col_plot:
 
     st.plotly_chart(fig, use_container_width=True)
 
-# ---------- KPI: Days Delayed + Effectiveness ----------
-# ---------- KPI: Days Delayed + Load Reduction + Effectiveness Score ----------
+# ---------- KPI + BUTTON + STORY ----------
 with col_kpi:
     st.markdown("<div class='metric-box'>", unsafe_allow_html=True)
     st.markdown("<h4 class='kpi-title'>Scenario Metrics</h4>", unsafe_allow_html=True)
 
-    # Metric A — Days delayed
     st.metric(
-        label="Days Until Danger Zone",
+        label="Days Delayed",
         value=delayed_text,
-        help="Higher = slows creation of NEW infections."
+        help="Higher = outbreak stays out of the danger zone for longer."
     )
 
-    # Metric B — Percent reduction in total viral load
     st.metric(
         label="Wastewater Viral Load Reduction (%)",
         value=f"{reduction_cum:.1f}%",
-        help="Higher = removes CURRENT infections faster."
+        help="Higher = less total viral RNA shed into sewage over the window."
     )
 
-    # Budget warning
     if over_budget:
         st.error("Over budget. Interventions ignored until ≤ 10 points.")
+
+    # Button to reveal effectiveness and the biological story
+    if applied_interventions and not over_budget and effectiveness_score is not None:
+        if st.button("Compute Effectiveness Score"):
+            st.markdown(f"**Effectiveness Score:** {effectiveness_score:.1f}")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -530,10 +558,9 @@ for col, chunk in zip((colA, colB), (items[:half], items[half:])):
 # ---------- Presenter notes (kept minimal) ----------
 with st.expander("ℹ️ Presenter Notes"):
     st.markdown("""
-- Red dashed is no intervention. Teal is the team's plan with chosen interventions.
-- The y-axis is zoomed around the danger threshold to make delays obvious.
-- **Days Delayed**: how much later the danger threshold is crossed (or avoided).
-- **Effectiveness Score**: combines delay and total viral RNA reduction, scaled by cost.
+- Red dashed is **no intervention**. Teal is the **team's plan**.
+- **Transmission reducers (TR)** mainly bend the slope → more **Days Until Danger Zone**.
+- **Shedding reducers (SR)** mainly lower the curve → more **Wastewater Viral Load Reduction**.
+- Effectiveness score rewards combos that both delay the danger zone and shrink total viral load,
+  with a soft penalty for cost (so smart combos can beat a single cheap pick).
     """)
-
-    

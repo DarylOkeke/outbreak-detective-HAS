@@ -94,7 +94,8 @@ st.markdown("<div class='hero-title'>OUTBREAK ALERT!!</div>", unsafe_allow_html=
 st.markdown(
     """
     <p class='hero-subtitle'>
-    Campus surveillance has detected early signs of an outbreak. As the public health analyst team, your mission is to identify where it started and choose the most effective interventions to slow the spread and limit the impact.
+    Campus surveillance has detected early signs of an outbreak. 
+    As the public health analyst team, your mission is to identify where it started and choose the most effective interventions to slow the spread and limit the impact.
     </p>
     """,
     unsafe_allow_html=True,
@@ -104,7 +105,7 @@ st.markdown("")
 st.markdown("---")
 
 # ---------------------------------------------------------------------
-# HOW THE GAME WORKS (safe, spoiler-free version)
+# HOW THE GAME WORKS
 # ---------------------------------------------------------------------
 st.markdown("""
 ## How the Game Works
