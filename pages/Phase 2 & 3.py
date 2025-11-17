@@ -199,7 +199,7 @@ INTERVENTIONS = {
         "cost": 7,
         "desc": "Finds hidden infected people and removes them",
         "r_mult": 1.00,
-        "shed_mult": 0.60,
+        "shed_mult": 0.70,
         "delay_days": 2.5,   # set up stations, process waves of positives
     },
     "Improved Dorm Ventilation": {
@@ -369,44 +369,85 @@ reduction_cum = pct_reduction(cum_base, cum_combo)
 if applied_interventions and not over_budget and total_cost > 0:
     # Core performance metrics
     delay_score = max(days_delay_num, 0)
-    rna_score   = max(reduction_cum, 0.0)
+    rna_score = max(reduction_cum, 0.0)
 
-    # Normalize metrics to 0–1 scale
-    delay_norm = min(delay_score, days_ahead) / float(days_ahead * 1.25)
-    rna_norm   = min(rna_score, 80.0) / 100.0
+    # Non-linear normalization keeps separation between fast vs. slow plans
+    delay_component = 1.0 - np.exp(-delay_score / 3.2)
+    shed_component = 1.0 - np.exp(-rna_score / 35.0)
 
-    # Biological performance weighting (60/40), 0 to 100
-    base_raw = 60.0 * delay_norm + 40.0 * rna_norm
+    # Transmission / shedding strength (0 = no change, 1 = huge impact)
+    tr_strength = max(0.0, 1.0 - combined_r_mult)
+    sr_strength = max(0.0, 1.0 - combined_shed_mult)
 
-    # ------------ SYNERGY / PENALTIES ------------
     tr_any = has_TR(applied_interventions)
     sr_any = has_SR(applied_interventions)
 
-    if tr_any and sr_any:
-        synergy_mult = 1.08   # or keep 1.08 if you like the bump
-    else:
-        synergy_mult = 1.0    # no explicit penalty
+    # Baseline performance anchors the mid tier
+    base_raw = 47.0 * delay_component + 24.0 * shed_component
 
-    # ------------ COST-EFFICIENCY MULTIPLIER ------------
-    # Centered at cost 10, gentle effect, bounded
-    raw_cost_eff = 1.0 + (10.0 - float(total_cost)) * 0.015
-    cost_eff = float(np.clip(raw_cost_eff, 0.90, 1.08))
+    # Direct bonuses for strong category hits
+    tr_bonus = 25.0 * (tr_strength ** 1.05)
+    sr_bonus = 32.0 * max(sr_strength - 0.25, 0.0)
+    if sr_strength > 0.30:
+        sr_bonus += 4.0
 
-    # ------------ COMPLEXITY BONUS ------------
-    # Reward multi tool strategies
-    extra_tools = max(0, len(applied_interventions) - 1)
-    capped_extra = min(extra_tools, 2)  # reward 2 or 3 tool plans, no extra beyond that
-    complexity_bonus = base_raw * 0.02 * capped_extra
+    # TR-only plans need a nudge so Masking can sit around ~45+
+    tr_focus = 0.0
+    if tr_any and not sr_any and tr_strength > 0.0:
+        tr_focus = 5.0 * (tr_strength / 0.3)
 
-    scored = base_raw * synergy_mult * cost_eff + complexity_bonus
+    # High quality TR+SR mixes get a synergy kicker gated by actual performance
+    synergy_boost = 0.0
+    if tr_any and sr_any and sr_strength >= 0.25:
+        performance_mix = 0.5 * delay_component + 0.5 * shed_component
+        synergy_boost = 8.5 * performance_mix * min(tr_strength + sr_strength, 1.8)
 
-    # Hard-cap to 100
-    effectiveness_score = float(min(scored, 100.0))
+    # Gentle cost and mild complexity effects keep cheap, sloppy plans from winning
+    cost_adjust = float(np.clip((10.0 - total_cost) * 0.6, -5.0, 5.0))
+    complexity_bonus = 6.0 * max(len(applied_interventions) - 1, 0)
+
+    # Penalties knock down weak mixes so "Stay Home + Symptom" doesn't spike
+    penalty = 0.0
+    if delay_component < 0.4:
+        penalty += (0.4 - delay_component) * 18.0
+    if shed_component < 0.35:
+        penalty += (0.35 - shed_component) * 14.0
+    if tr_any and sr_any and sr_strength < 0.25:
+        penalty += (0.25 - sr_strength) * 120.0
+    elif sr_any and not tr_any and sr_strength < 0.2:
+        penalty += (0.2 - sr_strength) * 60.0
+    if tr_any and tr_strength < 0.12:
+        penalty += (0.12 - tr_strength) * 50.0
+    if tr_any and sr_any and tr_strength < 0.15 and sr_strength < 0.2:
+        penalty += 12.0
+    if tr_any and sr_any and sr_strength < 0.30:
+        penalty += (0.30 - sr_strength) * 45.0
+
+    scored = (
+        base_raw
+        + tr_bonus
+        + sr_bonus
+        + synergy_boost
+        + tr_focus
+        + cost_adjust
+        + complexity_bonus
+        - penalty
+    )
+
+    effectiveness_score = float(np.clip(scored, 0.0, 100.0))
     eff_text = f"{effectiveness_score:.1f}"
+    # -------------------- PHASE 3 GAME POINTS --------------------
+    # Convert effectiveness score → game points (0–80 range)
+    if effectiveness_score is not None:
+        # Simple linear scaling: score ~7–76 → points 0–80
+        phase3_points = max(0, min(80, round(effectiveness_score * 0.8)))
+    else:
+        phase3_points = 0
 
 else:
     effectiveness_score = None
     eff_text = "N/A"
+    phase3_points = 0
 
 # -------------------- LAYOUT --------------------
 st.markdown(
@@ -573,7 +614,7 @@ with col_plot:
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
         margin=dict(l=10, r=10, t=40, b=10),
         xaxis_title="Date",
-        yaxis_title="Total Viral Reduction (copies/mL)",
+        yaxis_title="North Campus Viral Load (copies/mL)",
     )
     fig.update_yaxes(range=[y_min, y_max])
 
