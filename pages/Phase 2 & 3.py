@@ -184,12 +184,7 @@ INTERVENTIONS = {
         "shed_mult": 1.00,
         "delay_days": 1.0,   # fast policy rollout
     },
-    "Improved Dorm Ventilation": {
-        "cost": 3,
-        "desc": "Removes viral particles from indoor air",
-        "r_mult": 0.80,
-        "shed_mult": 1.00,
-        "delay_days": 3.0,   # takes crews time
+   "Isolation Dorms": {         "cost": 3,         "desc": "Moves known positives to isolated housing",         "r_mult": 1.00,         "shed_mult": 0.75,         "delay_days": 2.0,
     },
     "Stay-Home-When-Sick Campaign": {
         "cost": 1,
@@ -202,21 +197,21 @@ INTERVENTIONS = {
     # Shedding Reducers (SR)
     "Mandatory Testing": {
         "cost": 7,
-        "desc": "Finds hidden infected people and removes them from North Campus",
+        "desc": "Finds hidden infected people and removes them",
         "r_mult": 1.00,
         "shed_mult": 0.60,
         "delay_days": 2.5,   # set up stations, process waves of positives
     },
-    "Isolation Dorms": {
+    "Improved Dorm Ventilation": {
         "cost": 3,
-        "desc": "Moves known positives to isolated housing",
-        "r_mult": 1.00,
-        "shed_mult": 0.75,
-        "delay_days": 2.0,
+        "desc": "Removes viral particles from indoor air",
+        "r_mult": 0.80,
+        "shed_mult": 1.00,
+        "delay_days": 3.0,   # takes crews time
     },
     "Symptom Check-In System": {
         "cost": 2,
-        "desc": "Encourages sick students to self-report so they leave North Campus earlier",
+        "desc": "Encourages sick students to self-report so they leave earlier",
         "r_mult": 1.00,
         "shed_mult": 0.85,
         "delay_days": 1.5,
