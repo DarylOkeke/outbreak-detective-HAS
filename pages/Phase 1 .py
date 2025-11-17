@@ -21,9 +21,9 @@ def _assets_dir() -> Path:
 
 ASSETS = _assets_dir()
 MAP_PATH = ASSETS / "map.png"
-RNA_PATH = ASSETS / "Viral RNA in Sewage.png"
-POS_PATH = ASSETS / "Rapid Test Positivity by Campus Zone.png"
-ER_PATH  = ASSETS / "ER Visits by Campus Zone.png"
+RNA_PATH = ASSETS / "P1.png"
+POS_PATH = ASSETS / "P2.png"
+ER_PATH  = ASSETS / "P3.png"
 
 def _exists(p: Path) -> bool:
     return p is not None and p.exists() and p.is_file()
@@ -95,7 +95,6 @@ if st.session_state.step == 1:
         st.image(str(RNA_PATH), use_container_width=True)
     else:
         st.error("❌ Viral RNA image not found in /pages/assets/")
-    st.markdown("**What to look for:** Earlier **sustained** rise by zone. One-day spikes may be noise.")
     if show_missing_note:
         st.markdown("- Note: Some sampling dates are missing (gaps are expected in real monitoring).")
     if show_host_notes:
@@ -107,7 +106,6 @@ elif st.session_state.step == 2:
         st.image(str(POS_PATH), use_container_width=True)
     else:
         st.error("❌ Test positivity image not found in /pages/assets/")
-    st.markdown("**What to look for:** High positivity **with enough tests** is meaningful. Small-n spikes can mislead.")
     if show_host_notes:
         st.info("Host notes: Surge testing can lower positivity while cases rise; focus on trend + sample size.")
 
@@ -117,7 +115,6 @@ elif st.session_state.step == 3:
         st.image(str(ER_PATH), use_container_width=True)
     else:
         st.error("❌ ER Visits image not found in /pages/assets/")
-    st.markdown("**What to look for:** ER tends to **lag** infections. Late heat doesn’t always show the **origin**.")
     if show_host_notes:
         st.info("Host notes: Use ER as confirmatory evidence, not early detection.")
 

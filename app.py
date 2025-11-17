@@ -126,11 +126,7 @@ This shows what the outbreak is projected to do **if no one intervenes**.
 
 ### **Phase 3 — Response**
 🛠️ Choose your interventions  
-You’ll get a list of possible interventions, each with:
-- a point cost  
-- a short biology explanation  
-- a different effect on how the outbreak evolves  
-
+You’ll get a list of possible interventions 
 Your mission is to build a plan that **slows the outbreak and limits its impact**, all within a fixed budget.
 
 ---

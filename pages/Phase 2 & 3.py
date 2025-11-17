@@ -57,7 +57,6 @@ st.markdown(
 )
 
 # -------------------- DEMO TUNING --------------------
-DEMO_EXAGGERATION = 0.60   # Makes plan effects visually obvious (affects r, <1 = stronger reduction)
 LINE_SHAPE        = "spline"
 Y_CAP_MULT        = 1.6
 Y_MIN_FRACTION    = 0.5
@@ -180,44 +179,44 @@ INTERVENTIONS = {
     # Transmission Reducers (TR)
     "Masking Policy": {
         "cost": 4,
-        "desc": "Fewer infected droplets in the air → fewer new infections (strong TR).",
+        "desc": "Decreases spread during close contact",
         "r_mult": 0.70,
         "shed_mult": 1.00,
         "delay_days": 1.0,   # fast policy rollout
     },
     "Improved Dorm Ventilation": {
         "cost": 3,
-        "desc": "Cleaner indoor air → fewer exposures become infections (medium TR).",
+        "desc": "Removes viral particles from indoor air",
         "r_mult": 0.80,
         "shed_mult": 1.00,
         "delay_days": 3.0,   # takes crews time
     },
     "Stay-Home-When-Sick Campaign": {
         "cost": 1,
-        "desc": "Keeps mildly sick students out of shared spaces (light TR).",
+        "desc": "Tell sick students to stay out of public spaces",
         "r_mult": 0.90,
         "shed_mult": 1.00,
         "delay_days": 0.5,   # messaging is very fast
     },
 
     # Shedding Reducers (SR)
-    "Rapid Testing Blitz": {
+    "Mandatory Testing": {
         "cost": 7,
-        "desc": "Finds hidden positives early → removes silent shedders (strong SR).",
+        "desc": "Finds hidden infected people and removes them from North Campus",
         "r_mult": 1.00,
         "shed_mult": 0.60,
         "delay_days": 2.5,   # set up stations, process waves of positives
     },
-    "Dedicated Isolation Dorms": {
+    "Isolation Dorms": {
         "cost": 3,
-        "desc": "Moves positives to separate plumbing → lowers RNA in wastewater (medium SR).",
+        "desc": "Moves known positives to isolated housing",
         "r_mult": 1.00,
         "shed_mult": 0.75,
         "delay_days": 2.0,
     },
-    "Same-Day Test Results": {
+    "Symptom Check-In System": {
         "cost": 2,
-        "desc": "Faster test → isolation → fewer days shedding (light SR).",
+        "desc": "Encourages sick students to self-report so they leave North Campus earlier",
         "r_mult": 1.00,
         "shed_mult": 0.85,
         "delay_days": 1.5,
@@ -334,8 +333,7 @@ y_base = run_scenario(r_mult=1.0, shed_mult=1.0, trans_days=2.0, delay_days=0.0)
 
 if applied_interventions and not over_budget:
     # Make plan effects slightly stronger visually (for demo)
-    has_tr = has_TR(applied_interventions)
-    r_mult_effective = combined_r_mult * DEMO_EXAGGERATION if has_tr else 1.0
+    r_mult_effective = combined_r_mult
     y_combo = run_scenario(
         r_mult=r_mult_effective,
         shed_mult=combined_shed_mult,
@@ -390,21 +388,20 @@ if applied_interventions and not over_budget and total_cost > 0:
     sr_any = has_SR(applied_interventions)
 
     if tr_any and sr_any:
-        synergy_mult = 1.08   # gentle boost when both levers used
-    elif tr_any or sr_any:
-        synergy_mult = 0.97   # mild penalty for single mechanism focus
+        synergy_mult = 1.08   # or keep 1.08 if you like the bump
     else:
-        synergy_mult = 1.0
+        synergy_mult = 1.0    # no explicit penalty
 
     # ------------ COST-EFFICIENCY MULTIPLIER ------------
     # Centered at cost 10, gentle effect, bounded
-    raw_cost_eff = 1.0 + (10.0 - float(total_cost)) * 0.01
-    cost_eff = float(np.clip(raw_cost_eff, 0.94, 1.06))
+    raw_cost_eff = 1.0 + (10.0 - float(total_cost)) * 0.015
+    cost_eff = float(np.clip(raw_cost_eff, 0.90, 1.08))
 
     # ------------ COMPLEXITY BONUS ------------
     # Reward multi tool strategies
     extra_tools = max(0, len(applied_interventions) - 1)
-    complexity_bonus = base_raw * 0.03 * extra_tools
+    capped_extra = min(extra_tools, 2)  # reward 2 or 3 tool plans, no extra beyond that
+    complexity_bonus = base_raw * 0.02 * capped_extra
 
     scored = base_raw * synergy_mult * cost_eff + complexity_bonus
 
@@ -418,11 +415,18 @@ else:
 
 # -------------------- LAYOUT --------------------
 st.markdown(
-    "<h2 style='color:#DDE6F1;'>Forecasting North Campus Wastewater</h2>",
+    "<h2 style='color:#DDE6F1;'>North Campus Forecast: Plan the Response</h2>",
     unsafe_allow_html=True
 )
+
 st.markdown(
-    "<div class='subtle'>Forecast model: We fit a short term exponential growth rate from the latest data, then simulate forward with a logistic like curve. Transmission focused interventions bend the slope; shedding focused interventions lower the wastewater curve. Implementation delays mean some tools only kick in after a few days.</div>",
+    """
+    <div class='subtle'>
+    You’ve just identified <b>North Campus Housing</b> as the most likely origin.  
+    This tool shows a projected wastewater curve for North Campus if you <b>do nothing</b> versus if you
+    <b>apply interventions</b>.
+    </div>
+    """,
     unsafe_allow_html=True
 )
 st.write("")
@@ -432,8 +436,8 @@ st.markdown(
 **Your mission:**  
 With a **budget of 10 points**, pick a combination of interventions that
 
-1. **Delays** the curve from crossing the danger threshold (more **Days Until Danger Zone**), and  
-2. **Decreases the total Viral Load in Sewage** (higher **Wastewater Viral Load Reduction**).
+1. **Slow NEW spread**.
+2. **Reduce EXISTING infection left in North campus**.
 
 Some tools kick in faster than others. Check both **cost** and **time to implement**.
 """
@@ -574,7 +578,7 @@ with col_plot:
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
         margin=dict(l=10, r=10, t=40, b=10),
         xaxis_title="Date",
-        yaxis_title="Viral Load Concentration (copies/mL)",
+        yaxis_title="Total Viral Reduction (copies/mL)",
     )
     fig.update_yaxes(range=[y_min, y_max])
 
@@ -588,13 +592,13 @@ with col_kpi:
     st.metric(
         label="Days Delayed",
         value=delayed_text,
-        help="Higher = outbreak stays out of the danger zone for longer."
+        help="Slow NEW infections"
     )
 
     st.metric(
-        label="Wastewater Viral Load Reduction (%)",
+        label="Total Virus Decrease (%)",
         value=f"{reduction_cum:.1f}%",
-        help="Higher = less total viral RNA shed into sewage over the window."
+        help="Decrease EXISTING infections"
     )
 
     if over_budget:
