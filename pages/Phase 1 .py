@@ -56,7 +56,7 @@ Note: **Think about which dataset most reliably tells us this**.
 
 # Orientation map (if present)
 if _exists(MAP_PATH):
-    st.image(str(MAP_PATH), caption="Campus zones map (orientation)", use_container_width=True)
+    st.image(str(MAP_PATH), caption="Campus zones map (orientation)", use_column_width=True)
 st.markdown("---")
 
 with st.expander("Legend (quick mental model)", expanded=False):
@@ -92,7 +92,7 @@ st.subheader(exhibit_title(st.session_state.step))
 if st.session_state.step == 1:
     st.caption("Daily viral RNA measured from sewage samples by campus zone.")
     if _exists(RNA_PATH):
-        st.image(str(RNA_PATH), use_container_width=True)
+        st.image(str(RNA_PATH), use_column_width=True)
     else:
         st.error("❌ Viral RNA image not found in /pages/assets/")
     if show_missing_note:
@@ -103,7 +103,7 @@ if st.session_state.step == 1:
 elif st.session_state.step == 2:
     st.caption("Percent of daily rapid antigen tests returning positive per zone (sample size matters).")
     if _exists(POS_PATH):
-        st.image(str(POS_PATH), use_container_width=True)
+        st.image(str(POS_PATH), use_column_width=True)
     else:
         st.error("❌ Test positivity image not found in /pages/assets/")
     if show_host_notes:
@@ -112,7 +112,7 @@ elif st.session_state.step == 2:
 elif st.session_state.step == 3:
     st.caption("Daily ER visits for respiratory-like symptoms by zone (or overall time series).")
     if _exists(ER_PATH):
-        st.image(str(ER_PATH), use_container_width=True)
+        st.image(str(ER_PATH), use_column_width=True)
     else:
         st.error("❌ ER Visits image not found in /pages/assets/")
     if show_host_notes:
@@ -123,14 +123,14 @@ else:
     c1, c2 = st.columns(2)
     with c1:
         if _exists(RNA_PATH):
-            st.image(str(RNA_PATH), caption="Exhibit A — Viral RNA (by zone)", use_container_width=True)
+            st.image(str(RNA_PATH), caption="Exhibit A — Viral RNA (by zone)", use_column_width=True)
         if _exists(POS_PATH):
-            st.image(str(POS_PATH), caption="Exhibit B — % Positive (by zone)", use_container_width=True)
+            st.image(str(POS_PATH), caption="Exhibit B — % Positive (by zone)", use_column_width=True)
     with c2:
         if _exists(ER_PATH):
-            st.image(str(ER_PATH), caption="Exhibit C — ER Visits (by zone)", use_container_width=True)
+            st.image(str(ER_PATH), caption="Exhibit C — ER Visits (by zone)", use_column_width=True)
         if _exists(MAP_PATH):
-            st.image(str(MAP_PATH), caption="Campus Map (reference)", use_container_width=True)
+            st.image(str(MAP_PATH), caption="Campus Map (reference)", use_column_width=True)
 
     st.markdown("---")
     st.markdown("### 📝 Final Questions")
