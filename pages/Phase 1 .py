@@ -32,9 +32,9 @@ def _exists(p: Path) -> bool:
 # SIDEBAR CONTROLS
 # --------------------------------
 st.sidebar.markdown("### Presenter Controls")
-presenter_mode = st.sidebar.toggle("Presenter mode (step through exhibits)", value=True)
+presenter_mode = st.sidebar.checkbox("Presenter mode (step through exhibits)", value=True)
 show_missing_note = st.sidebar.checkbox("Show 'missing sampling dates' note", value=True)
-show_host_notes = st.sidebar.toggle("Show host notes on screen", value=False)
+show_host_notes = st.sidebar.checkbox("Show host notes on screen", value=False)
 
 # --------------------------------
 # SESSION: EXHIBIT STEPPER
@@ -57,7 +57,7 @@ Note: **Think about which dataset most reliably tells us this**.
 # Orientation map (if present)
 if _exists(MAP_PATH):
     st.image(str(MAP_PATH), caption="Campus zones map (orientation)", use_container_width=True)
-st.divider()
+st.markdown("---")
 
 with st.expander("Legend (quick mental model)", expanded=False):
     st.markdown(
@@ -72,9 +72,9 @@ with st.expander("Legend (quick mental model)", expanded=False):
 if presenter_mode:
     col_nav = st.columns([1, 6, 1])
     with col_nav[0]:
-        st.button("⬅️ Prev", on_click=lambda: goto(-1), use_container_width=True)
+        st.button("⬅️ Prev", on_click=lambda: goto(-1))
     with col_nav[2]:
-        st.button("Next ➡️", on_click=lambda: goto(1), use_container_width=True)
+        st.button("Next ➡️", on_click=lambda: goto(1))
 
 def exhibit_title(step):
     return {
@@ -132,14 +132,14 @@ else:
         if _exists(MAP_PATH):
             st.image(str(MAP_PATH), caption="Campus Map (reference)", use_container_width=True)
 
-    st.divider()
+    st.markdown("---")
     st.markdown("### 📝 Final Questions")
     st.markdown("1) **Where did the outbreak likely start?**  \n2) **(Tie-breaker)** Which exhibit gave the **first real clue**, and why?")
 
 # --------------------------------
 # OPTIONAL HINTS & NOTES
 # --------------------------------
-st.divider()
+st.markdown("---")
 with st.expander("💡 Nudge (optional)"):
     st.markdown(
         "- Visual height isn’t always the earliest clue.\n"
