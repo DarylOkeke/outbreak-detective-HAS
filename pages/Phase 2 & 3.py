@@ -517,8 +517,7 @@ with col_plot:
     fig.add_trace(go.Scatter(
         x=base_dates, y=y_base, mode="lines",
         name="No Intervention",
-        line=dict(color=HAS_RED, width=3, dash="dash"),
-        line_shape=LINE_SHAPE
+        line=dict(color=HAS_RED, width=3, dash="dash", shape=LINE_SHAPE)
     ))
 
     # Plan future
@@ -539,8 +538,7 @@ with col_plot:
     fig.add_trace(go.Scatter(
         x=base_dates, y=y_combo, mode="lines",
         name=plan_name,
-        line=dict(color=color_combo, width=4, dash=plan_dash),
-        line_shape=LINE_SHAPE,
+        line=dict(color=color_combo, width=4, dash=plan_dash, shape=LINE_SHAPE),
         opacity=plan_opacity
     ))
 
